@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  # -------------------------------------------------------
+  # CLI Analysis Runner
+  # -------------------------------------------------------
+  agentsaham:
+    build: .
+    container_name: agentsaham_cli
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./videos:/app/videos  # Mount local video files here
+    command: ["python", "main.py", "--ticker", "${TICKER:-BBCA}"]
+
+  # -------------------------------------------------------
+  # Streamlit Dashboard
+  # -------------------------------------------------------
+  dashboard:
+    build: .
+    container_name: agentsaham_dashboard
+    env_file:
+      - .env
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./logs:/app/logs
+    command: ["streamlit", "run", "output/dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
