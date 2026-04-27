@@ -5,6 +5,8 @@ Aggregates BUY/SELL/HOLD signals from multiple agents using weighted voting
 to produce a final consensus signal with confidence level.
 """
 
+from typing import List, Optional
+
 from loguru import logger
 
 
@@ -99,7 +101,7 @@ class VotingSystem:
             "transaction": self.weight_transaction,
         }
 
-        raw_signals: list[str] = []
+        raw_signals: List[str] = []
 
         for agent_name, weight in weights.items():
             result = agent_results.get(agent_name, {})
@@ -157,7 +159,7 @@ class VotingSystem:
         )
         return result
 
-    def _detect_conflict(self, signals: list[str]) -> bool:
+    def _detect_conflict(self, signals: List[str]) -> bool:
         """Return True if BUY and SELL signals coexist among agents."""
         has_buy = any(s in ("BUY",) for s in signals)
         has_sell = any(s in ("SELL",) for s in signals)

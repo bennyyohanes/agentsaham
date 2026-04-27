@@ -7,7 +7,7 @@ structured BUY/SELL/HOLD recommendation.
 """
 
 import json
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 from loguru import logger
 
@@ -96,7 +96,7 @@ class FundamentalAgent:
         self,
         ticker: str,
         fundamentals: dict,
-        news: list[dict],
+        news: List[Dict],
         transcript: Optional[str],
     ) -> str:
         """Build the Gemini prompt for fundamental analysis."""
@@ -213,7 +213,7 @@ Berikan analisa fundamental dalam format JSON berikut (hanya JSON, tanpa teks la
     def _fallback_analysis(self, fundamentals: dict) -> dict:
         """Simple rule-based fallback when Gemini parsing fails."""
         score = 0.0
-        parts: list[str] = []
+        parts: List[str] = []
 
         per = fundamentals.get("per")
         if per:

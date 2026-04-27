@@ -5,7 +5,7 @@ Analyzes stock price action using technical indicators and chart patterns
 to produce a BUY/SELL/HOLD signal with confidence and reasoning.
 """
 
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 from loguru import logger
@@ -121,15 +121,15 @@ class TechnicalAgent:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _score_indicators(self, indicators: dict, patterns: dict, trend: str) -> tuple[float, list[str]]:
+    def _score_indicators(self, indicators: dict, patterns: dict, trend: str) -> Tuple[float, List[str]]:
         """
         Build a directional score (-1 bearish … +1 bullish) from indicators.
 
         Returns:
-            Tuple of (score: float, reasoning_parts: list[str]).
+            Tuple of (score: float, reasoning_parts: List[str]).
         """
         score = 0.0
-        parts: list[str] = []
+        parts: List[str] = []
 
         rsi = indicators.get("rsi")
         if rsi is not None:
@@ -193,7 +193,7 @@ class TechnicalAgent:
 
         return score, parts
 
-    def _score_to_signal(self, score: float) -> tuple[str, float]:
+    def _score_to_signal(self, score: float) -> Tuple[str, float]:
         """
         Convert a directional score to a BUY/SELL/HOLD signal and confidence.
 

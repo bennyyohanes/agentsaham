@@ -5,7 +5,7 @@ Detects unusual trading activity, accumulation/distribution patterns,
 foreign fund flows, and bid/ask pressure to identify big player movements.
 """
 
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 from loguru import logger
 
@@ -81,7 +81,7 @@ class TransactionAgent:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _analyze_volume(self, df, volume_data: dict) -> tuple[float, list[str], bool]:
+    def _analyze_volume(self, df, volume_data: dict) -> Tuple[float, List[str], bool]:
         """
         Analyze volume patterns to produce a directional score.
 
@@ -93,7 +93,7 @@ class TransactionAgent:
             Tuple of (score, reasoning_parts, unusual_activity).
         """
         score = 0.0
-        parts: list[str] = []
+        parts: List[str] = []
         unusual = False
 
         # 1. Volume anomaly check
@@ -204,7 +204,7 @@ class TransactionAgent:
             return "bearish_divergence"
         return "none"
 
-    def _score_to_signal(self, score: float) -> tuple[str, float]:
+    def _score_to_signal(self, score: float) -> Tuple[str, float]:
         """
         Convert directional score to signal and confidence.
 

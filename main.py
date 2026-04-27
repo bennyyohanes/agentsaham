@@ -1,4 +1,5 @@
 """
+from typing import Optional
 AgentSaham — Main CLI entry point.
 
 Usage:

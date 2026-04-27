@@ -6,6 +6,7 @@ of all agents and the voting system's final decision.
 """
 
 from datetime import datetime
+from typing import List, Optional
 
 from loguru import logger
 
@@ -108,7 +109,7 @@ class ReportGenerator:
     # Section formatters
     # ------------------------------------------------------------------
 
-    def _format_technical_section(self, tech: dict) -> list[str]:
+    def _format_technical_section(self, tech: dict) -> List[str]:
         """Format the technical analysis section."""
         signal = tech.get("signal", "HOLD")
         confidence = tech.get("confidence", 0.0)
@@ -166,7 +167,7 @@ class ReportGenerator:
 
         return lines
 
-    def _format_fundamental_section(self, fund: dict) -> list[str]:
+    def _format_fundamental_section(self, fund: dict) -> List[str]:
         """Format the fundamental analysis section."""
         signal = fund.get("signal", "HOLD")
         confidence = fund.get("confidence", 0.0)
@@ -210,7 +211,7 @@ class ReportGenerator:
 
         return lines
 
-    def _format_transaction_section(self, trans: dict) -> list[str]:
+    def _format_transaction_section(self, trans: dict) -> List[str]:
         """Format the transaction analysis section."""
         signal = trans.get("signal", "HOLD")
         confidence = trans.get("confidence", 0.0)

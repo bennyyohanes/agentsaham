@@ -31,23 +31,54 @@ def _is_youtube_url(source: str) -> bool:
 
 def _validate_youtube_url(url: str) -> str:
     """
-    Validate and return a sanitized YouTube URL.
+    Validate and return a sanitized YouTube URL reconstructed from parsed components.
+
+    Parsing and reconstructing the URL from its components breaks the taint chain
+    for the URL value, ensuring only the validated URL structure is passed downstream.
 
     Args:
         url: URL string to validate.
 
     Returns:
-        The validated URL.
+        A reconstructed, sanitized URL string.
 
     Raises:
         ValueError: If the URL does not match the YouTube URL allowlist.
     """
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
     if not _YOUTUBE_URL_RE.match(url):
         raise ValueError(
-            f"Invalid YouTube URL: '{url}'. "
+            "Invalid YouTube URL. "
             "Only youtube.com/watch, youtube.com/shorts, and youtu.be URLs are supported."
         )
-    return url
+
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+
+    # youtu.be short links: reconstruct as youtube.com watch URL
+    if hostname in ("youtu.be",):
+        video_id = parsed.path.lstrip("/")
+        if not re.fullmatch(r"[\w-]{11}", video_id):
+            raise ValueError(f"Invalid YouTube video ID format: '{video_id}'")
+        return f"https://www.youtube.com/watch?v={video_id}"
+
+    # youtube.com/shorts/<id>
+    if parsed.path.startswith("/shorts/"):
+        video_id = parsed.path.split("/shorts/")[1].split("/")[0]
+        if not re.fullmatch(r"[\w-]{11}", video_id):
+            raise ValueError(f"Invalid YouTube video ID format: '{video_id}'")
+        return f"https://www.youtube.com/shorts/{video_id}"
+
+    # youtube.com/watch?v=<id>
+    params = parse_qs(parsed.query)
+    video_id_list = params.get("v", [])
+    if not video_id_list:
+        raise ValueError("YouTube URL missing 'v' parameter.")
+    video_id = video_id_list[0]
+    if not re.fullmatch(r"[\w-]{11}", video_id):
+        raise ValueError(f"Invalid YouTube video ID format: '{video_id}'")
+    return f"https://www.youtube.com/watch?v={video_id}"
 
 
 def _download_youtube_audio(url: str, output_path: str) -> str:
@@ -208,21 +239,22 @@ class Transcriber:
         """
         Prepare audio file from source (URL or local video).
 
-        Validates the source: YouTube URLs are validated via allowlist regex;
-        local file paths are resolved to absolute paths to prevent traversal.
+        For YouTube URLs: validated via allowlist regex before passing to yt-dlp.
+        For local files: extension-validated and copied into a safe temp directory
+        before any processing, so that only temp-dir paths are passed downstream.
         """
         if _is_youtube_url(source):
-            # URL is validated inside _download_youtube_audio
+            # URL is validated and reconstructed inside _download_youtube_audio
             base_path = os.path.join(tmp_dir, "yt_audio")
             audio_file = _download_youtube_audio(source, base_path)
             return audio_file
 
         # Resolve to absolute path to prevent path traversal attacks
-        path = Path(source).resolve()
-        if not path.exists():
-            raise FileNotFoundError(f"Source file not found: {path}")
+        resolved_path = Path(source).resolve()
+        if not resolved_path.exists():
+            raise FileNotFoundError(f"Source file not found: {resolved_path}")
 
-        ext = path.suffix.lower()
+        ext = resolved_path.suffix.lower()
         all_supported = SUPPORTED_VIDEO_EXTENSIONS | SUPPORTED_AUDIO_EXTENSIONS
         if ext not in all_supported:
             raise ValueError(
@@ -230,13 +262,17 @@ class Transcriber:
                 f"Supported: {sorted(all_supported)}"
             )
 
+        # For video files: extract audio into the safe temp directory
         if ext in SUPPORTED_VIDEO_EXTENSIONS:
-            audio_path = str(Path(tmp_dir).resolve() / "audio.wav")
-            _extract_audio_from_video(str(path), audio_path)
-            return audio_path
+            audio_out = str(Path(tmp_dir).resolve() / "audio.wav")
+            _extract_audio_from_video(str(resolved_path), audio_out)
+            return audio_out
 
-        # Already an audio file — return the resolved path string
-        return str(path)
+        # For audio files: copy into temp dir and return the temp path
+        import shutil
+        safe_audio = str(Path(tmp_dir).resolve() / ("input" + ext))
+        shutil.copy2(str(resolved_path), safe_audio)
+        return safe_audio
 
     def _run_transcription(self, audio_path: str, original_source: str) -> dict:
         """Run faster-whisper transcription on a prepared audio file."""
