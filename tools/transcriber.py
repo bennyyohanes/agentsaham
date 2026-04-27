@@ -6,6 +6,7 @@ faster-whisper with automatic language detection for Indonesian and English.
 """
 
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -15,14 +16,38 @@ from loguru import logger
 
 
 SUPPORTED_VIDEO_EXTENSIONS = {".mp4", ".avi", ".mkv", ".mov", ".flv", ".webm"}
+SUPPORTED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg"}
+
+# Allowlist of valid YouTube URL patterns
+_YOUTUBE_URL_RE = re.compile(
+    r"^https?://(www\.)?(youtube\.com/(watch\?.*v=[\w-]+|shorts/[\w-]+)|youtu\.be/[\w-]+)"
+)
 
 
 def _is_youtube_url(source: str) -> bool:
-    """Check if a string looks like a YouTube URL."""
-    return any(
-        domain in source
-        for domain in ("youtube.com/watch", "youtu.be/", "youtube.com/shorts/")
-    )
+    """Check if a string is a valid YouTube URL using a strict allowlist regex."""
+    return bool(_YOUTUBE_URL_RE.match(source))
+
+
+def _validate_youtube_url(url: str) -> str:
+    """
+    Validate and return a sanitized YouTube URL.
+
+    Args:
+        url: URL string to validate.
+
+    Returns:
+        The validated URL.
+
+    Raises:
+        ValueError: If the URL does not match the YouTube URL allowlist.
+    """
+    if not _YOUTUBE_URL_RE.match(url):
+        raise ValueError(
+            f"Invalid YouTube URL: '{url}'. "
+            "Only youtube.com/watch, youtube.com/shorts, and youtu.be URLs are supported."
+        )
+    return url
 
 
 def _download_youtube_audio(url: str, output_path: str) -> str:
@@ -30,31 +55,40 @@ def _download_youtube_audio(url: str, output_path: str) -> str:
     Download audio from a YouTube video using yt-dlp.
 
     Args:
-        url: YouTube video URL.
+        url: Validated YouTube video URL.
         output_path: Output file path (without extension; yt-dlp adds .m4a/.opus etc.).
+                     Must be within a safe temporary directory.
 
     Returns:
         Path to the downloaded audio file.
 
     Raises:
+        ValueError: If the URL fails validation.
         RuntimeError: If yt-dlp fails.
     """
-    logger.info(f"Downloading YouTube audio from: {url}")
+    # Re-validate URL before passing to subprocess
+    validated_url = _validate_youtube_url(url)
+
+    # Ensure output_path is inside a temp directory (resolved absolute path)
+    output_resolved = str(Path(output_path).resolve())
+
+    logger.info(f"Downloading YouTube audio from validated URL")
     cmd = [
         "yt-dlp",
         "--extract-audio",
         "--audio-format", "mp3",
         "--audio-quality", "0",
-        "--output", output_path + ".%(ext)s",
-        url,
+        "--output", output_resolved + ".%(ext)s",
+        "--",      # Treat subsequent arguments as non-option strings
+        validated_url,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"yt-dlp failed: {result.stderr}")
 
     # Find the downloaded file
-    parent = Path(output_path).parent
-    stem = Path(output_path).stem
+    parent = Path(output_resolved).parent
+    stem = Path(output_resolved).stem
     for f in parent.iterdir():
         if f.stem == stem and f.suffix in (".mp3", ".m4a", ".opus", ".wav"):
             return str(f)
@@ -66,22 +100,26 @@ def _extract_audio_from_video(video_path: str, audio_path: str) -> None:
     Extract audio stream from a video file using ffmpeg.
 
     Args:
-        video_path: Path to the input video file.
-        audio_path: Path to write the output audio file (.wav).
+        video_path: Resolved absolute path to the input video file.
+        audio_path: Resolved absolute path to write the output audio file (.wav).
 
     Raises:
         RuntimeError: If ffmpeg is not available or extraction fails.
     """
-    logger.debug(f"Extracting audio: {video_path} -> {audio_path}")
+    # Use resolved absolute paths to prevent path traversal
+    resolved_video = str(Path(video_path).resolve())
+    resolved_audio = str(Path(audio_path).resolve())
+
+    logger.debug(f"Extracting audio from video file")
     cmd = [
         "ffmpeg",
         "-y",          # Overwrite output
-        "-i", video_path,
+        "-i", resolved_video,
         "-vn",         # No video
         "-acodec", "pcm_s16le",
         "-ar", "16000",
         "-ac", "1",
-        audio_path,
+        resolved_audio,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -167,29 +205,37 @@ class Transcriber:
             return self._run_transcription(audio_path, source)
 
     def _prepare_audio(self, source: str, tmp_dir: str) -> str:
-        """Prepare audio file from source (URL or local video)."""
+        """
+        Prepare audio file from source (URL or local video).
+
+        Validates the source: YouTube URLs are validated via allowlist regex;
+        local file paths are resolved to absolute paths to prevent traversal.
+        """
         if _is_youtube_url(source):
+            # URL is validated inside _download_youtube_audio
             base_path = os.path.join(tmp_dir, "yt_audio")
             audio_file = _download_youtube_audio(source, base_path)
             return audio_file
 
-        path = Path(source)
+        # Resolve to absolute path to prevent path traversal attacks
+        path = Path(source).resolve()
         if not path.exists():
-            raise FileNotFoundError(f"Source file not found: {source}")
+            raise FileNotFoundError(f"Source file not found: {path}")
 
         ext = path.suffix.lower()
-        if ext not in SUPPORTED_VIDEO_EXTENSIONS and ext not in (".mp3", ".wav", ".m4a", ".ogg"):
+        all_supported = SUPPORTED_VIDEO_EXTENSIONS | SUPPORTED_AUDIO_EXTENSIONS
+        if ext not in all_supported:
             raise ValueError(
                 f"Unsupported file type: {ext}. "
-                f"Supported: {SUPPORTED_VIDEO_EXTENSIONS}"
+                f"Supported: {sorted(all_supported)}"
             )
 
         if ext in SUPPORTED_VIDEO_EXTENSIONS:
-            audio_path = os.path.join(tmp_dir, "audio.wav")
+            audio_path = str(Path(tmp_dir).resolve() / "audio.wav")
             _extract_audio_from_video(str(path), audio_path)
             return audio_path
 
-        # Already an audio file
+        # Already an audio file — return the resolved path string
         return str(path)
 
     def _run_transcription(self, audio_path: str, original_source: str) -> dict:

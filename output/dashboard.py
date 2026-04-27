@@ -12,6 +12,7 @@ Run with:
 import asyncio
 import sys
 import os
+from typing import Optional
 
 # Ensure project root is on path when run directly
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -106,10 +107,10 @@ def update_progress(pct: int, msg: str) -> None:
 # Run analysis
 # -----------------------------------------------------------------------
 with st.spinner(f"Menganalisa {ticker_input}..."):
-    transcript: str | None = None
+    transcript: Optional[str] = None
 
     # Step 1: Transcription (if source provided)
-    video_source: str | None = None
+    video_source: Optional[str] = None
     if uploaded_video is not None:
         import tempfile
         update_progress(10, "📁 Menyimpan video yang di-upload...")

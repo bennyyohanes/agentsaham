@@ -82,7 +82,7 @@ async def _run_analysis(args: argparse.Namespace) -> dict:
     from agents.orchestrator import Orchestrator
     from tools.transcriber import Transcriber
 
-    transcript: str | None = None
+    transcript: Optional[str] = None
     video_source = args.video or args.youtube
 
     if video_source:

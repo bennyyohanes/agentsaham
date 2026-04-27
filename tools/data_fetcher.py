@@ -11,7 +11,7 @@ Provides functions to:
 import time
 from datetime import datetime
 from functools import lru_cache
-from typing import Optional
+from typing import Dict, List, Optional
 
 import feedparser
 import pandas as pd
@@ -186,7 +186,7 @@ def scrape_news(
     ticker: str,
     rss_feeds: Optional[list] = None,
     max_articles: int = 10,
-) -> list[dict]:
+) -> List[Dict]:
     """
     Scrape news articles related to a stock ticker from RSS feeds.
 
@@ -207,7 +207,7 @@ def scrape_news(
 
     # Strip exchange suffix for keyword matching
     keyword = ticker.replace(".JK", "").upper()
-    articles: list[dict] = []
+    articles: List[Dict] = []
 
     for feed_url in rss_feeds:
         try:
@@ -230,7 +230,7 @@ def scrape_news(
 
     # Deduplicate by title and limit results
     seen_titles: set = set()
-    unique_articles: list[dict] = []
+    unique_articles: List[Dict] = []
     for article in articles:
         if article["title"] not in seen_titles:
             seen_titles.add(article["title"])
@@ -288,6 +288,6 @@ class DataFetcher:
         """Fetch volume data (not cached due to real-time nature)."""
         return fetch_volume_data(ticker, period=period)
 
-    def get_news(self, ticker: str, rss_feeds: Optional[list] = None, max_articles: int = 10) -> list[dict]:
+    def get_news(self, ticker: str, rss_feeds: Optional[list] = None, max_articles: int = 10) -> List[Dict]:
         """Scrape news for ticker from RSS feeds."""
         return scrape_news(ticker, rss_feeds=rss_feeds, max_articles=max_articles)
