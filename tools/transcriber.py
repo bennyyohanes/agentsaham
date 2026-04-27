@@ -59,14 +59,14 @@ def _validate_youtube_url(url: str) -> str:
     # youtu.be short links: reconstruct as youtube.com watch URL
     if hostname in ("youtu.be",):
         video_id = parsed.path.lstrip("/")
-        if not re.fullmatch(r"[\w-]{11}", video_id):
+        if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
             raise ValueError(f"Invalid YouTube video ID format: '{video_id}'")
         return f"https://www.youtube.com/watch?v={video_id}"
 
     # youtube.com/shorts/<id>
     if parsed.path.startswith("/shorts/"):
         video_id = parsed.path.split("/shorts/")[1].split("/")[0]
-        if not re.fullmatch(r"[\w-]{11}", video_id):
+        if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
             raise ValueError(f"Invalid YouTube video ID format: '{video_id}'")
         return f"https://www.youtube.com/shorts/{video_id}"
 
@@ -76,7 +76,7 @@ def _validate_youtube_url(url: str) -> str:
     if not video_id_list:
         raise ValueError("YouTube URL missing 'v' parameter.")
     video_id = video_id_list[0]
-    if not re.fullmatch(r"[\w-]{11}", video_id):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
         raise ValueError(f"Invalid YouTube video ID format: '{video_id}'")
     return f"https://www.youtube.com/watch?v={video_id}"
 

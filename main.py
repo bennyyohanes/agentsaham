@@ -1,5 +1,4 @@
 """
-from typing import Optional
 AgentSaham — Main CLI entry point.
 
 Usage:
@@ -12,6 +11,7 @@ Usage:
 import argparse
 import asyncio
 import sys
+from typing import Optional
 
 from loguru import logger
 
